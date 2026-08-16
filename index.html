@@ -268,7 +268,14 @@
             padding: 10px; border-bottom: 1px dashed #ccc; font-size: 14px;
         }
         .btn-del { background: #e07a7a; color: white; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+        .btn-edit { background: var(--btn-blue); color: white; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; margin-right: 5px; }
         .btn-close { width: 100%; padding: 14px; background: #96b4a3; color: white; border: none; border-radius: 12px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+
+        /* 行内编辑模式样式 */
+        .edit-mode { display: flex; gap: 8px; align-items: center; width: 100%; }
+        .edit-input-icon { width: 50px; padding: 8px; border: 1px solid var(--btn-blue); border-radius: 6px; text-align: center; }
+        .edit-input-name { flex: 1; padding: 8px; border: 1px solid var(--btn-blue); border-radius: 6px; }
+        .edit-input-points { width: 60px; padding: 8px; border: 1px solid var(--btn-blue); border-radius: 6px; text-align: center; }
 
         /* ================= 移动端专项优化 ================= */
         @media(max-width: 650px) {
@@ -276,11 +283,9 @@
             .app-container { padding: 20px 15px; border-radius: 15px; }
             .main-title { font-size: 22px; margin-bottom: 20px; }
             
-            /* 顶部标签变灵活 */
             .tabs { margin-bottom: -10px; }
             .tab { width: 45%; padding: 10px 0 20px 0; font-size: 16px; border-radius: 15px 15px 0 0; }
             
-            /* 仪表盘变纵向排版 */
             .dashboard { 
                 flex-direction: column; 
                 padding: 20px 15px; 
@@ -291,17 +296,19 @@
             .score-value { font-size: 42px; }
             .progress-section { width: 100%; }
             
-            /* 行动区竖向排列 */
             .actions-container { flex-direction: column; margin-bottom: 20px; }
             .action-box { padding: 30px 15px 15px; margin-top: 25px; }
             .box-badge { font-size: 14px; padding: 6px 25px; top: -16px; }
             
-            /* 后台面板表单折叠与铺满 */
             .admin-row { flex-wrap: wrap; }
             .admin-row .input-icon { width: 60px; }
-            .admin-row .input-name { flex: 1 1 calc(100% - 70px); } /* 第一行放图标和名字 */
-            .admin-row .input-points { width: calc(100% - 100px); } /* 第二行放分数和按钮 */
+            .admin-row .input-name { flex: 1 1 calc(100% - 70px); }
+            .admin-row .input-points { width: calc(100% - 100px); }
             .btn-add, .btn-update { flex: 1; text-align: center; }
+            
+            .edit-mode { flex-wrap: wrap; }
+            .edit-mode .edit-input-name { min-width: 120px; flex: 1 1 auto; }
+            .edit-mode > div { width: 100%; display: flex; justify-content: flex-end; margin-top: 5px; }
             
             .settings-btn { width: 100%; padding: 15px; font-size: 18px; border-radius: 15px; }
             .modal-content { padding: 20px 15px; }
@@ -388,7 +395,7 @@
         <div class="admin-section">
             <h3 style="margin-top:0; color:var(--badge-task);">添加新任务 (加分)</h3>
             <div class="admin-row">
-                <input type="text" id="taskIcon" class="input-icon" placeholder="图标(如🧹)">
+                <input type="text" id="taskIcon" class="input-icon" placeholder="图标">
                 <input type="text" id="taskName" class="input-name" placeholder="任务名称">
                 <input type="number" id="taskPoints" class="input-points" placeholder="分数">
                 <button class="btn-add" onclick="window.addItem('tasks')">添加</button>
@@ -399,7 +406,7 @@
         <div class="admin-section">
             <h3 style="margin-top:0; color:var(--badge-reward);">添加新奖励 (扣分)</h3>
             <div class="admin-row">
-                <input type="text" id="rewardIcon" class="input-icon" placeholder="图标(如📺)">
+                <input type="text" id="rewardIcon" class="input-icon" placeholder="图标">
                 <input type="text" id="rewardName" class="input-name" placeholder="奖励名称">
                 <input type="number" id="rewardPoints" class="input-points" placeholder="分数">
                 <button class="btn-add" onclick="window.addItem('rewards')">添加</button>
@@ -451,6 +458,7 @@
     let appData = null;
     let currentKid = "姐姐";
     let isInitialized = false;
+    let editingItemId = null; // 用于跟踪当前正在修改哪个项目
     
     document.getElementById('loadingTip').style.display = 'block';
 
@@ -495,26 +503,19 @@
 
     window.changeScore = function(points, isTask) {
         if(!isInitialized) return;
-        
-        // 手机端添加震动反馈 (如果设备支持)
         if (navigator.vibrate) navigator.vibrate(50);
         
         appData.scores[currentKid].total += points;
         if (appData.scores[currentKid].total < 0) appData.scores[currentKid].total = 0;
         
         if (isTask && points > 0) appData.scores[currentKid].today += points;
-        
         syncDataToCloud();
     };
 
     window.updateManualScore = function(kid) {
         const inputId = kid === '姐姐' ? 'editSisterScore' : 'editBrotherScore';
         const newScore = parseInt(document.getElementById(inputId).value);
-        
-        if (isNaN(newScore) || newScore < 0) {
-            alert("请输入有效的非负数字！");
-            return;
-        }
+        if (isNaN(newScore) || newScore < 0) return alert("请输入有效的非负数字！");
         
         appData.scores[kid].total = newScore;
         syncDataToCloud();
@@ -570,29 +571,53 @@
             document.getElementById('editSisterScore').value = appData.scores["姐姐"].total;
             document.getElementById('editBrotherScore').value = appData.scores["弟弟"].total;
         }
+        editingItemId = null; // 每次打开设置时重置编辑状态
         document.getElementById('settingsModal').style.display = 'flex';
         renderAdminLists();
     };
 
     window.closeSettings = function() {
         document.getElementById('settingsModal').style.display = 'none';
+        editingItemId = null;
     };
 
+    // ================== 后台列表渲染 (包含修改功能) ==================
     function renderAdminLists() {
         if(!appData) return;
-        document.getElementById('adminTaskList').innerHTML = (appData.tasks || []).map(t => `
-            <div class="list-item">
-                <span>${t.icon} ${t.name} (+${t.points}分)</span>
-                <button class="btn-del" onclick="window.deleteItem('tasks', ${t.id})">删除</button>
-            </div>
-        `).join('');
 
-        document.getElementById('adminRewardList').innerHTML = (appData.rewards || []).map(r => `
-            <div class="list-item">
-                <span>${r.icon} ${r.name} (-${r.points}分)</span>
-                <button class="btn-del" onclick="window.deleteItem('rewards', ${r.id})">删除</button>
-            </div>
-        `).join('');
+        const renderList = (type, items) => {
+            return (items || []).map(item => {
+                // 如果当前项目正在被编辑
+                if (item.id === editingItemId) {
+                    return `
+                        <div class="list-item edit-mode">
+                            <input type="text" id="editIcon_${item.id}" value="${item.icon}" class="edit-input-icon">
+                            <input type="text" id="editName_${item.id}" value="${item.name}" class="edit-input-name">
+                            <input type="number" id="editPoints_${item.id}" value="${item.points}" class="edit-input-points">
+                            <div>
+                                <button class="btn-update" onclick="window.saveEditedItem('${type}', ${item.id})" style="padding: 6px 12px; margin-right: 5px;">保存</button>
+                                <button class="btn-del" onclick="window.cancelEdit()" style="background: #a6b6c2;">取消</button>
+                            </div>
+                        </div>
+                    `;
+                } 
+                // 正常显示模式
+                else {
+                    return `
+                        <div class="list-item">
+                            <span>${item.icon} ${item.name} (${type === 'tasks' ? '+' : '-'}${item.points}分)</span>
+                            <div>
+                                <button class="btn-edit" onclick="window.startEdit(${item.id})">修改</button>
+                                <button class="btn-del" onclick="window.deleteItem('${type}', ${item.id})">删除</button>
+                            </div>
+                        </div>
+                    `;
+                }
+            }).join('');
+        };
+
+        document.getElementById('adminTaskList').innerHTML = renderList('tasks', appData.tasks);
+        document.getElementById('adminRewardList').innerHTML = renderList('rewards', appData.rewards);
     }
 
     window.addItem = function(type) {
@@ -622,6 +647,42 @@
         if(!appData[type]) return;
         appData[type] = appData[type].filter(item => item.id !== id);
         syncDataToCloud();
+    };
+
+    // 触发修改模式
+    window.startEdit = function(id) {
+        editingItemId = id;
+        renderAdminLists();
+    };
+
+    // 取消修改
+    window.cancelEdit = function() {
+        editingItemId = null;
+        renderAdminLists();
+    };
+
+    // 保存修改的内容
+    window.saveEditedItem = function(type, id) {
+        const newIcon = document.getElementById(`editIcon_${id}`).value;
+        const newName = document.getElementById(`editName_${id}`).value;
+        const newPoints = parseInt(document.getElementById(`editPoints_${id}`).value);
+
+        if (!newIcon || !newName || isNaN(newPoints)) {
+            return alert("图标、名称和分数都不能为空！");
+        }
+
+        const itemIndex = appData[type].findIndex(item => item.id === id);
+        if (itemIndex !== -1) {
+            appData[type][itemIndex] = {
+                ...appData[type][itemIndex],
+                icon: newIcon,
+                name: newName,
+                points: newPoints
+            };
+            
+            editingItemId = null; // 退出编辑模式
+            syncDataToCloud(); // 同步到云端
+        }
     };
 </script>
 
