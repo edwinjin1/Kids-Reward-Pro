@@ -2,7 +2,12 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- PWA / 移动端沉浸式设置 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#fbf8f1">
+    
     <title>宝贝日常记分板</title>
     <style>
         :root {
@@ -20,7 +25,7 @@
             --card-border: #e0e0e0;
         }
 
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         body {
             background-color: var(--bg-page);
@@ -59,6 +64,7 @@
             font-weight: bold;
             margin-bottom: 10px;
             display: none;
+            font-size: 14px;
         }
 
         /* 顶部积分面板区域 */
@@ -147,7 +153,6 @@
             gap: 20px;
             margin-bottom: 30px;
         }
-        @media(max-width: 768px) { .actions-container { flex-direction: column; } }
 
         .action-box {
             flex: 1;
@@ -223,25 +228,26 @@
             box-shadow: 0 4px 10px rgba(136, 181, 196, 0.4);
             transition: opacity 0.2s;
         }
-        .settings-btn:hover { opacity: 0.9; }
+        .settings-btn:active { opacity: 0.8; transform: scale(0.98); }
 
         /* 模态框 (后台设置) */
         .modal {
             display: none;
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.4);
+            background: rgba(0,0,0,0.5);
             z-index: 100;
             justify-content: center;
             align-items: center;
             backdrop-filter: blur(3px);
+            padding: 15px;
         }
         .modal-content {
             background: #fff;
-            width: 90%;
+            width: 100%;
             max-width: 600px;
             border-radius: 20px;
-            padding: 30px;
+            padding: 25px;
             max-height: 85vh;
             overflow-y: auto;
         }
@@ -261,8 +267,45 @@
             display: flex; justify-content: space-between; align-items: center;
             padding: 10px; border-bottom: 1px dashed #ccc; font-size: 14px;
         }
-        .btn-del { background: #e07a7a; color: white; border: none; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
-        .btn-close { width: 100%; padding: 12px; background: #96b4a3; color: white; border: none; border-radius: 12px; font-size: 16px; cursor: pointer; font-weight: bold; }
+        .btn-del { background: #e07a7a; color: white; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+        .btn-close { width: 100%; padding: 14px; background: #96b4a3; color: white; border: none; border-radius: 12px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+
+        /* ================= 移动端专项优化 ================= */
+        @media(max-width: 650px) {
+            body { padding: 10px; }
+            .app-container { padding: 20px 15px; border-radius: 15px; }
+            .main-title { font-size: 22px; margin-bottom: 20px; }
+            
+            /* 顶部标签变灵活 */
+            .tabs { margin-bottom: -10px; }
+            .tab { width: 45%; padding: 10px 0 20px 0; font-size: 16px; border-radius: 15px 15px 0 0; }
+            
+            /* 仪表盘变纵向排版 */
+            .dashboard { 
+                flex-direction: column; 
+                padding: 20px 15px; 
+                gap: 15px; 
+                border-radius: 20px;
+            }
+            .score-card { width: 100%; padding: 15px 20px; }
+            .score-value { font-size: 42px; }
+            .progress-section { width: 100%; }
+            
+            /* 行动区竖向排列 */
+            .actions-container { flex-direction: column; margin-bottom: 20px; }
+            .action-box { padding: 30px 15px 15px; margin-top: 25px; }
+            .box-badge { font-size: 14px; padding: 6px 25px; top: -16px; }
+            
+            /* 后台面板表单折叠与铺满 */
+            .admin-row { flex-wrap: wrap; }
+            .admin-row .input-icon { width: 60px; }
+            .admin-row .input-name { flex: 1 1 calc(100% - 70px); } /* 第一行放图标和名字 */
+            .admin-row .input-points { width: calc(100% - 100px); } /* 第二行放分数和按钮 */
+            .btn-add, .btn-update { flex: 1; text-align: center; }
+            
+            .settings-btn { width: 100%; padding: 15px; font-size: 18px; border-radius: 15px; }
+            .modal-content { padding: 20px 15px; }
+        }
     </style>
 </head>
 <body>
@@ -364,7 +407,7 @@
             <div id="adminRewardList"></div>
         </div>
 
-        <button class="btn-close" onclick="window.closeSettings()">关闭面板</button>
+        <button class="btn-close" onclick="window.closeSettings()">保存并关闭界面</button>
     </div>
 </div>
 
@@ -373,7 +416,6 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-    // 你的 Firebase 配置
     const firebaseConfig = {
       apiKey: "AIzaSyD9uo-m9V0mZJyVczJuToccfwjsqpCprh4",
       authDomain: "kids-reward-3b83f.firebaseapp.com",
@@ -384,12 +426,10 @@
       appId: "1:386212485697:web:4d752247be9232b4f0c4c0"
     };
 
-    // 初始化 Firebase
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
-    const dataRef = ref(db, 'kidsRewardsData'); // 在数据库中建立名为 kidsRewardsData 的节点
+    const dataRef = ref(db, 'kidsRewardsData');
 
-    // 默认初始数据
     const defaultData = {
         scores: { "姐姐": { total: 0, today: 0 }, "弟弟": { total: 0, today: 0 } },
         avatars: { "姐姐": "🦄", "弟弟": "🦖" },
@@ -412,38 +452,28 @@
     let currentKid = "姐姐";
     let isInitialized = false;
     
-    // 显示加载提示
     document.getElementById('loadingTip').style.display = 'block';
 
-    // 核心：监听云端数据变化 (任何设备更改数据，都会触发这里)
     onValue(dataRef, (snapshot) => {
         const data = snapshot.val();
         document.getElementById('loadingTip').style.display = 'none';
 
         if (data) {
             appData = data;
-            
-            // 补全可能缺失的字段（防老版本数据兼容问题）
             if(!appData.avatars) appData.avatars = defaultData.avatars;
             if(!appData.tasks) appData.tasks = [];
             if(!appData.rewards) appData.rewards = [];
-            
             isInitialized = true;
             updateUI();
         } else {
-            // 如果云端是空的（第一次使用），把默认数据推上去
             set(dataRef, defaultData);
         }
     });
 
-    // 将数据保存到云端
     function syncDataToCloud() {
-        if(isInitialized && appData) {
-            set(dataRef, appData);
-        }
+        if(isInitialized && appData) set(dataRef, appData);
     }
 
-    // 检查是否跨天，重置今日积分
     function checkDate() {
         if(!appData) return;
         const today = new Date().toLocaleDateString();
@@ -455,7 +485,6 @@
         }
     }
 
-    // 绑定到 window 对象上，以便 HTML 里的 onclick 可以调用
     window.switchKid = function(kid) {
         currentKid = kid;
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -467,15 +496,15 @@
     window.changeScore = function(points, isTask) {
         if(!isInitialized) return;
         
+        // 手机端添加震动反馈 (如果设备支持)
+        if (navigator.vibrate) navigator.vibrate(50);
+        
         appData.scores[currentKid].total += points;
-        if (appData.scores[currentKid].total < 0) appData.scores[currentKid].total = 0; // 防负分
+        if (appData.scores[currentKid].total < 0) appData.scores[currentKid].total = 0;
         
-        // 如果是加分任务，增加今日成就
-        if (isTask && points > 0) {
-            appData.scores[currentKid].today += points;
-        }
+        if (isTask && points > 0) appData.scores[currentKid].today += points;
         
-        syncDataToCloud(); // 提交到云端！UI 会通过 onValue 自动刷新
+        syncDataToCloud();
     };
 
     window.updateManualScore = function(kid) {
@@ -504,18 +533,15 @@
         if(!appData) return;
         checkDate(); 
         
-        // 更新仪表盘
         document.getElementById('kidName').innerText = currentKid;
         document.getElementById('kidAvatar').innerText = appData.avatars[currentKid];
         document.getElementById('currentScore').innerHTML = `${appData.scores[currentKid].total}<span>分</span>`;
         
-        // 更新进度条
         const todayScore = appData.scores[currentKid].today || 0;
         document.getElementById('todayScoreText').innerText = `${todayScore}分`;
         const progressPercent = Math.min((todayScore / 100) * 100, 100);
         document.getElementById('todayProgressBar').style.width = `${progressPercent}%`;
         
-        // 渲染任务
         const taskList = document.getElementById('taskList');
         taskList.innerHTML = (appData.tasks || []).map(t => `
             <div class="card" onclick="window.changeScore(${t.points}, true)">
@@ -525,7 +551,6 @@
             </div>
         `).join('');
 
-        // 渲染奖励
         const rewardList = document.getElementById('rewardList');
         rewardList.innerHTML = (appData.rewards || []).map(r => `
             <div class="card" onclick="window.changeScore(-${r.points}, false)">
@@ -535,7 +560,6 @@
             </div>
         `).join('');
         
-        // 如果后台面板开着，也同步刷新面板数据
         if (document.getElementById('settingsModal').style.display === 'flex') {
             renderAdminLists();
         }
